@@ -1,0 +1,112 @@
+################################
+# OS / Editor
+################################
+.DS_Store
+Thumbs.db
+
+*.swp
+*.swo
+*.tmp
+*.bak
+*.log
+
+.idea/
+*.sln.iml
+
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+################################
+# .NET / Visual Studio
+################################
+bin/
+obj/
+out/
+
+.vs/
+*.user
+*.rsuser
+*.suo
+*.userprefs
+
+################################
+# ASP.NET Core
+################################
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+secrets.json
+
+################################
+# Entity Framework
+# (миграции ВКЛЮЧЕНЫ в git)
+################################
+# ничего не игнорим специально
+
+################################
+# Node / Vite / React
+################################
+node_modules/
+
+dist/
+build/
+.vite/
+
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+################################
+# TypeScript / ESLint
+################################
+*.tsbuildinfo
+.eslintcache
+
+################################
+# Tailwind / PostCSS
+################################
+tailwind.config.js.bak
+postcss.config.js.bak
+
+################################
+# GraphQL
+################################
+*.graphql.schema.json
+
+################################
+# Environment variables
+################################
+.env
+.env.*
+!.env.example
+
+################################
+# Docker
+################################
+docker-compose.override.yml
+docker-compose.local.yml
+*.env.docker
+**/Dockerfile.local
+
+################################
+# PostgreSQL
+################################
+*.dump
+*.backup
+*.sql
+
+################################
+# Tests / Coverage / CI
+################################
+coverage/
+coverage.*
+TestResults/
+*.trx
+
+################################
+# Logs
+################################
+logs/
+**/logs/

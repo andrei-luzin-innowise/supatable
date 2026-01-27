@@ -1,0 +1,7 @@
+﻿services:
+  supatable.api:
+    image: supatable.api
+    build:
+      context: .
+      dockerfile: Dockerfile
+
