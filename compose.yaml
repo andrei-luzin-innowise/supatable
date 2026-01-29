@@ -1,0 +1,13 @@
+﻿services:
+  supatable.api:
+    image: supatable.api
+    build:
+      context: .
+      dockerfile: src/Supatable.Api/Dockerfile
+
+  supatable.api-1:
+    image: supatable.api-1
+    build:
+      context: .
+      dockerfile: src/Supatable.Api/Dockerfile
+

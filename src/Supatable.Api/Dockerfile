@@ -7,10 +7,10 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["Supatable.Api.csproj", "./"]
-RUN dotnet restore "Supatable.Api.csproj"
+COPY ["src/Supatable.Api/Supatable.Api.csproj", "src/Supatable.Api/"]
+RUN dotnet restore "src/Supatable.Api/Supatable.Api.csproj"
 COPY . .
-WORKDIR "/src/"
+WORKDIR "/src/src/Supatable.Api"
 RUN dotnet build "./Supatable.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
