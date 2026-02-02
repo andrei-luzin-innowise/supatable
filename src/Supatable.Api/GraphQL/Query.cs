@@ -10,12 +10,23 @@ public sealed class Query
     public Task<GetUsersResult> Users(
         UsersInput input,
         [Service] IMediator mediator,
+        [Service] ILogger<Query> logger,
         CancellationToken ct)
-        => mediator.Send(
-            new GetUsersQuery(
-                input.Search,
-                input.Role,
-                input.Offset,
-                input.Limit),
-            ct);
+    {
+        try
+        {
+            return mediator.Send(
+                new GetUsersQuery(
+                    input.Search,
+                    input.Role,
+                    input.Offset,
+                    input.Limit),
+                ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error while executing users query with input {@Input}", input);
+            throw;
+        }
+    }
 }

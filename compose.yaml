@@ -1,13 +1,32 @@
 ﻿services:
-  supatable.api:
-    image: supatable.api
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: supatable
+      POSTGRES_USER: supatable
+      POSTGRES_PASSWORD: supatable
+    ports:
+      - "5432:5432"
+    volumes:
+      - supatable_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supatable -d supatable"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
     build:
       context: .
       dockerfile: src/Supatable.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=db;Port=5432;Database=supatable;Username=supatable;Password=supatable
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
 
-  supatable.api-1:
-    image: supatable.api-1
-    build:
-      context: .
-      dockerfile: src/Supatable.Api/Dockerfile
-
+volumes:
+  supatable_pg:
