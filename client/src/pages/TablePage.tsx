@@ -171,6 +171,11 @@ export default function TablePage() {
 
     const hasFilter = query.search.trim().length > 0 || query.role !== "All";
 
+    const [sort, setSort] = useState<{ key: keyof UserRow; dir: "asc" | "desc" }>({
+        key: "createdAt",
+        dir: "desc",
+    });
+
     const columns = useMemo(
         () =>
             [
@@ -182,6 +187,35 @@ export default function TablePage() {
             ] as const,
         []
     );
+
+    const sortedRows = useMemo(() => {
+        const copy = [...rows];
+
+        const cmp = (a: UserRow, b: UserRow) => {
+            const k = sort.key;
+
+            if (k === "createdAt") {
+                const av = Date.parse(a.createdAt);
+                const bv = Date.parse(b.createdAt);
+                return (av - bv) * (sort.dir === "asc" ? 1 : -1);
+            }
+
+            const av = String(a[k] ?? "");
+            const bv = String(b[k] ?? "");
+            return av.localeCompare(bv) * (sort.dir === "asc" ? 1 : -1);
+        };
+
+        copy.sort(cmp);
+        return copy;
+    }, [rows, sort.key, sort.dir]);
+
+    function handleSortClick(key: keyof UserRow) {
+        setSort((s) =>
+            s.key === key
+                ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+                : { key, dir: "asc" }
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#0B0F19] text-zinc-100">
@@ -212,23 +246,6 @@ export default function TablePage() {
                 <div className="mt-4 rounded-xl border border-zinc-800/70 bg-[#0E1424]">
                     <div className="flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between">
                         <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
-                            <button
-                                type="button"
-                                className="inline-flex items-center gap-2 rounded-lg border border-zinc-800/80 bg-[#0B0F19] px-3 py-2 text-xs text-zinc-200 hover:border-zinc-700"
-                                title="Fields (stub)"
-                            >
-                                <Icon name="fields" />
-                                Fields <span className="text-zinc-500">All</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                className="inline-flex items-center gap-2 rounded-lg border border-zinc-800/80 bg-[#0B0F19] px-3 py-2 text-xs text-zinc-200 hover:border-zinc-700"
-                                title="Filters (stub)"
-                            >
-                                <Icon name="filter" />
-                                Filters <span className="text-zinc-500">—</span>
-                            </button>
 
                             {/* Search */}
                             <div className="relative w-full md:max-w-md">
@@ -283,28 +300,66 @@ export default function TablePage() {
 
                 {/* Table */}
                 <div className="mt-4 overflow-hidden rounded-xl border border-zinc-800/70 bg-[#0E1424]">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full border-separate border-spacing-0 text-xs">
+                    <div className="overflow-x-hidden">
+                        <table className="w-full table-fixed border-separate border-spacing-0 text-xs">
                             <thead className="sticky top-0 z-10 bg-[#0E1424]">
                             <tr>
-                                {columns.map((c) => (
-                                    <th
-                                        key={c.key}
-                                        className="whitespace-nowrap border-b border-zinc-800/70 px-4 py-3 text-left font-medium text-zinc-300"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span className="lowercase">{c.title}</span>
-                                            <span className="text-[10px] text-zinc-500">A↕</span>
-                                        </div>
-                                    </th>
-                                ))}
+                                <th className="w-[260px] whitespace-nowrap border-b border-zinc-800/70 px-4 py-3 text-left font-medium text-zinc-300">
+                                    <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
+                                         onClick={() => handleSortClick("id")}>
+                                        <span className="lowercase">id</span>
+                                        <span className="text-[10px] text-zinc-500">
+                                            {sort.key === "id" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
+                                        </span>
+                                    </div>
+                                </th>
+
+                                <th className="w-[320px] whitespace-nowrap border-b border-zinc-800/70 px-4 py-3 text-left font-medium text-zinc-300">
+                                    <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
+                                         onClick={() => handleSortClick("email")}>
+                                        <span className="lowercase">email</span>
+                                        <span className="text-[10px] text-zinc-500">
+                                            {sort.key === "email" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
+                                        </span>
+                                    </div>
+                                </th>
+
+                                <th className="w-[280px] whitespace-nowrap border-b border-zinc-800/70 px-4 py-3 text-left font-medium text-zinc-300">
+                                    <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
+                                         onClick={() => handleSortClick("fullName")}>
+                                        <span className="lowercase">full name</span>
+                                        <span className="text-[10px] text-zinc-500">
+                                            {sort.key === "fullName" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
+                                        </span>
+                                    </div>
+                                </th>
+
+                                <th className="w-[140px] whitespace-nowrap border-b border-zinc-800/70 px-4 py-3 text-left font-medium text-zinc-300">
+                                    <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
+                                         onClick={() => handleSortClick("role")}>
+                                        <span className="lowercase">role</span>
+                                        <span className="text-[10px] text-zinc-500">
+                                            {sort.key === "role" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
+                                        </span>
+                                    </div>
+                                </th>
+
+                                <th className="w-[220px] whitespace-nowrap border-b border-zinc-800/70 px-4 py-3 text-left font-medium text-zinc-300">
+                                    <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
+                                         onClick={() => handleSortClick("createdAt")}>
+                                        <span className="lowercase">created</span>
+                                        <span className="text-[10px] text-zinc-500">
+                                            {sort.key === "createdAt" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
+                                        </span>
+                                    </div>
+                                </th>
                             </tr>
                             </thead>
 
                             <tbody className="[&>tr:last-child>td]:border-b-0">
                             {error && (
                                 <tr>
-                                    <td colSpan={columns.length} className="px-4 py-6 text-sm text-red-300">
+                                    <td colSpan={5} className="px-4 py-6 text-sm text-red-300">
                                         Error: {error}
                                     </td>
                                 </tr>
@@ -312,7 +367,7 @@ export default function TablePage() {
 
                             {!error && loading && rows.length === 0 && (
                                 <tr>
-                                    <td colSpan={columns.length} className="px-4 py-10 text-center text-zinc-400">
+                                    <td colSpan={5} className="px-4 py-10 text-center text-zinc-400">
                                         Loading…
                                     </td>
                                 </tr>
@@ -320,28 +375,34 @@ export default function TablePage() {
 
                             {!error && !loading && rows.length === 0 && (
                                 <tr>
-                                    <td colSpan={columns.length} className="px-4 py-10 text-center text-zinc-400">
+                                    <td colSpan={5} className="px-4 py-10 text-center text-zinc-400">
                                         No results
                                     </td>
                                 </tr>
                             )}
 
-                            {rows.map((r) => (
+                            {sortedRows.map((r) => (
                                 <tr key={r.id} className="group hover:bg-[#0B0F19]/70">
                                     <td className="border-b border-zinc-800/60 px-4 py-3 font-mono text-[11px] text-zinc-400">
-                                        {r.id}
+                                        <div className="truncate">{r.id}</div>
                                     </td>
+
                                     <td className="border-b border-zinc-800/60 px-4 py-3 font-mono text-[11px] text-zinc-100">
-                                        {r.email}
+                                        <div className="truncate">{r.email}</div>
                                     </td>
-                                    <td className="border-b border-zinc-800/60 px-4 py-3 text-zinc-100">{r.fullName}</td>
+
+                                    <td className="border-b border-zinc-800/60 px-4 py-3 text-zinc-100">
+                                        <div className="truncate">{r.fullName}</div>
+                                    </td>
+
                                     <td className="border-b border-zinc-800/60 px-4 py-3">
-                      <span className="inline-flex items-center rounded-md border border-zinc-700/70 bg-[#0B0F19] px-2 py-1 font-mono text-[11px] text-zinc-200">
-                        {r.role}
-                      </span>
+                                      <span className="inline-flex items-center rounded-md border border-zinc-700/70 bg-[#0B0F19] px-2 py-1 font-mono text-[11px] text-zinc-200">
+                                        {r.role}
+                                      </span>
                                     </td>
+
                                     <td className="border-b border-zinc-800/60 px-4 py-3 font-mono text-[11px] text-zinc-500">
-                                        {formatDate(r.createdAt)}
+                                        <div className="truncate">{formatDate(r.createdAt)}</div>
                                     </td>
                                 </tr>
                             ))}
@@ -350,10 +411,7 @@ export default function TablePage() {
                     </div>
 
                     <div className="flex items-center justify-between border-t border-zinc-800/70 px-4 py-3 text-[11px] text-zinc-500">
-                        <div className="flex items-center gap-2">
-                            <span className="text-zinc-600">Tip:</span>
-                            <span>header is sticky, rows highlight on hover (Prisma-ish)</span>
-                        </div>
+                        <div className="flex items-center gap-2"></div>
                         <div className="font-mono">{loading ? "fetching…" : "ready"}</div>
                     </div>
                 </div>

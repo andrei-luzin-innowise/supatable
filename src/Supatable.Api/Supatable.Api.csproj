@@ -22,5 +22,9 @@
       <ProjectReference Include="..\Supatable.Application\Supatable.Application.csproj" />
       <ProjectReference Include="..\Supatable.Infrastructure\Supatable.Infrastructure.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Controllers\" />
+    </ItemGroup>
     
 </Project>
