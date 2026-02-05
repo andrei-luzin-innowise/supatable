@@ -217,6 +217,11 @@ export default function TablePage() {
         );
     }
 
+    function renderSortIcon(key: keyof UserRow) {
+        if (sort.key !== key) return "A↕";
+        return sort.dir === "asc" ? "A↑" : "A↓";
+    }
+
     return (
         <div className="min-h-screen bg-[#0B0F19] text-zinc-100">
             <div className="mx-auto max-w-[1200px] px-4 py-6">
@@ -308,9 +313,7 @@ export default function TablePage() {
                                     <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
                                          onClick={() => handleSortClick("id")}>
                                         <span className="lowercase">id</span>
-                                        <span className="text-[10px] text-zinc-500">
-                                            {sort.key === "id" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
-                                        </span>
+                                        <span className="text-[10px] text-zinc-500">{renderSortIcon("id")}</span>
                                     </div>
                                 </th>
 
@@ -318,9 +321,7 @@ export default function TablePage() {
                                     <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
                                          onClick={() => handleSortClick("email")}>
                                         <span className="lowercase">email</span>
-                                        <span className="text-[10px] text-zinc-500">
-                                            {sort.key === "email" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
-                                        </span>
+                                        <span className="text-[10px] text-zinc-500">{renderSortIcon("email")}</span>
                                     </div>
                                 </th>
 
@@ -328,9 +329,7 @@ export default function TablePage() {
                                     <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
                                          onClick={() => handleSortClick("fullName")}>
                                         <span className="lowercase">full name</span>
-                                        <span className="text-[10px] text-zinc-500">
-                                            {sort.key === "fullName" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
-                                        </span>
+                                        <span className="text-[10px] text-zinc-500">{renderSortIcon("fullName")}</span>
                                     </div>
                                 </th>
 
@@ -338,9 +337,7 @@ export default function TablePage() {
                                     <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
                                          onClick={() => handleSortClick("role")}>
                                         <span className="lowercase">role</span>
-                                        <span className="text-[10px] text-zinc-500">
-                                            {sort.key === "role" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
-                                        </span>
+                                        <span className="text-[10px] text-zinc-500">{renderSortIcon("role")}</span>
                                     </div>
                                 </th>
 
@@ -348,9 +345,7 @@ export default function TablePage() {
                                     <div className="flex items-center gap-2 cursor-pointer select-none hover:text-zinc-100"
                                          onClick={() => handleSortClick("createdAt")}>
                                         <span className="lowercase">created</span>
-                                        <span className="text-[10px] text-zinc-500">
-                                            {sort.key === "createdAt" ? (sort.dir === "asc" ? "A↑" : "A↓") : "A↕"}
-                                        </span>
+                                        <span className="text-[10px] text-zinc-500">{renderSortIcon("createdAt")}</span>
                                     </div>
                                 </th>
                             </tr>

@@ -45,6 +45,10 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapGraphQL("/graphql");
+app.MapFallbackToFile("index.html");
 
 app.Run();

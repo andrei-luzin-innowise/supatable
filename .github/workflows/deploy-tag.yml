@@ -1,0 +1,95 @@
+name: Build on tag (FE + BE + Docker) - deploy disabled
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "demo-*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "20"
+
+  CLIENT_DIR: "client"
+  DOCKERFILE_PATH: "src/Supatable.Api/Dockerfile"
+  DOCKER_CONTEXT: "."
+  IMAGE_NAME: "supatable-api"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------- FE ----------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.CLIENT_DIR }}/package-lock.json
+
+      - name: Install FE deps
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: npm ci
+
+      - name: Build FE (Vite)
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: npm run build
+
+      # ---------- BE ----------
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      # ---------- Docker build ----------
+      - name: Docker build (no push)
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          IMAGE="${IMAGE_NAME}:${TAG}"
+          docker build -f "${DOCKERFILE_PATH}" -t "${IMAGE}" "${DOCKER_CONTEXT}"
+          docker images | head -n 25
+
+      # ---------- GHCR push (DISABLED) ----------
+      - name: Login to GHCR (DISABLED)
+        if: false
+        run: echo "${{ github.token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Tag & Push to GHCR (DISABLED)
+        if: false
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          IMAGE_LOCAL="${IMAGE_NAME}:${TAG}"
+          IMAGE_GHCR="ghcr.io/${{ github.repository }}/supatable-api:${TAG}"
+
+          docker tag "${IMAGE_LOCAL}" "${IMAGE_GHCR}"
+          docker push "${IMAGE_GHCR}"
+
+      # ---------- Azure (DISABLED) ----------
+      - name: Azure Login (DISABLED)
+        if: false
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure (DISABLED)
+        if: false
+        run: echo "Azure deploy disabled until billing is enabled."
