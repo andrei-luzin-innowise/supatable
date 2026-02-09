@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using MediatR;
+using Supatable.Api.Observability;
 using Supatable.Application.Features.Users;
 
 namespace Supatable.Api.GraphQL;
@@ -13,6 +15,9 @@ public sealed class Query
         [Service] ILogger<Query> logger,
         CancellationToken ct)
     {
+        var sw = Stopwatch.StartNew();
+        AppMetrics.UsersRequests.Add(1);
+
         try
         {
             return mediator.Send(
@@ -26,7 +31,13 @@ public sealed class Query
         catch (Exception ex)
         {
             logger.LogError(ex, "Error while executing users query with input {@Input}", input);
+            AppMetrics.UsersErrors.Add(1);
             throw;
+        }
+        finally
+        {
+            sw.Stop();
+            AppMetrics.UsersDurationMs.Record(sw.Elapsed.TotalMilliseconds);
         }
     }
 }

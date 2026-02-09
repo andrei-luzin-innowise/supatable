@@ -1,33 +1,27 @@
-﻿# ---------- build frontend ----------
-FROM node:20-alpine AS fe
-WORKDIR /client
+﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+WORKDIR /app
+EXPOSE 8080
 
-COPY client/package*.json ./
-RUN npm ci
-
-COPY client/ ./
-RUN npm run build
-
-# ---------- build backend ----------
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 COPY ["src/Supatable.Api/Supatable.Api.csproj", "src/Supatable.Api/"]
+COPY ["src/Supatable.Application/Supatable.Application.csproj", "src/Supatable.Application/"]
+COPY ["src/Supatable.Domain/Supatable.Domain.csproj", "src/Supatable.Domain/"]
+COPY ["src/Supatable.Infrastructure/Supatable.Infrastructure.csproj", "src/Supatable.Infrastructure/"]
+
 RUN dotnet restore "src/Supatable.Api/Supatable.Api.csproj"
 
 COPY . .
 WORKDIR "/src/src/Supatable.Api"
-RUN dotnet publish "./Supatable.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet build "Supatable.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-# ---------- runtime ----------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM build AS publish
+ARG BUILD_CONFIGURATION=Release
+RUN dotnet publish "Supatable.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
 WORKDIR /app
-
-ENV ASPNETCORE_URLS=http://+:8080
-EXPOSE 8080
-
-COPY --from=build /app/publish ./
-COPY --from=fe /client/dist ./wwwroot
-
+COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "Supatable.Api.dll"]

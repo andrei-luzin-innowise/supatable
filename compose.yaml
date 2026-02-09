@@ -15,6 +15,40 @@
       timeout: 3s
       retries: 20
 
+  loki:
+    image: grafana/loki:3.0.0
+    command: -config.file=/etc/loki/loki.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prom-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_USERS_DEFAULT_THEME: "dark"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - loki
+      - prometheus
+
   api:
     build:
       context: .
@@ -22,11 +56,28 @@
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: Host=db;Port=5432;Database=supatable;Username=supatable;Password=supatable
+      Serilog__WriteTo__2__Args__uri: "http://loki:3100"
     ports:
       - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
+      loki:
+        condition: service_started
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    environment:
+      VITE_API_PROXY_TARGET: "http://api:8080"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
 
 volumes:
   supatable_pg:
+  loki-data:
+  prom-data:
+  grafana-data:

@@ -10,6 +10,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: deploy-tag-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "20"
@@ -43,11 +47,19 @@ jobs:
         working-directory: ${{ env.CLIENT_DIR }}
         run: npm run build
 
+      - name: Upload FE dist (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: fe-dist-${{ github.ref_name }}
+          path: ${{ env.CLIENT_DIR }}/dist
+          if-no-files-found: error
+
       # ---------- BE ----------
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
 
       - name: Restore
         run: dotnet restore
@@ -66,6 +78,21 @@ jobs:
           docker build -f "${DOCKERFILE_PATH}" -t "${IMAGE}" "${DOCKER_CONTEXT}"
           docker images | head -n 25
 
+      # save docker image as tar to test
+      - name: Save Docker image to artifact
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          IMAGE="${IMAGE_NAME}:${TAG}"
+          mkdir -p artifacts
+          docker save "${IMAGE}" | gzip > "artifacts/${IMAGE_NAME}-${TAG}.tar.gz"
+
+      - name: Upload Docker image (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-image-${{ github.ref_name }}
+          path: artifacts/*.tar.gz
+          if-no-files-found: error
+
       # ---------- GHCR push (DISABLED) ----------
       - name: Login to GHCR (DISABLED)
         if: false
@@ -76,7 +103,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           IMAGE_LOCAL="${IMAGE_NAME}:${TAG}"
-          IMAGE_GHCR="ghcr.io/${{ github.repository }}/supatable-api:${TAG}"
+          IMAGE_GHCR="ghcr.io/${{ github.repository_owner }}/supatable-api:${TAG}"
 
           docker tag "${IMAGE_LOCAL}" "${IMAGE_GHCR}"
           docker push "${IMAGE_GHCR}"
