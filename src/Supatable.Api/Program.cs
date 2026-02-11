@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Metrics;
 using Serilog;
 using Serilog.Enrichers.Span;
+using Supatable.Api.Startup;
 using Supatable.Api.GraphQL;
 using Supatable.Api.Observability;
 using Supatable.Application;
@@ -37,6 +38,7 @@ builder.Services.AddOpenTelemetry()
 // GraphQL
 builder.Services
     .AddGraphQLServer()
+    //.ModifyRequestOptions(o => o.IncludeExceptionDetails = true)
     .AddQueryType<Query>();
 
 // MediatR
@@ -58,8 +60,20 @@ builder.Services.AddScoped<IUsersReadRepository, UsersReadRepository>();
 
 var app = builder.Build();
 
+await app.ApplyDatabaseMigrationsAsync();
+
 // request logs (method/path/status/duration)
-app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging(options =>
+{
+    options.GetLevel = (httpContext, elapsed, ex) =>
+    {
+        var path = httpContext.Request.Path;
+
+        return path.StartsWithSegments("/metrics")
+            ? Serilog.Events.LogEventLevel.Debug
+            : Serilog.Events.LogEventLevel.Information;
+    };
+});
 app.UseTraceId();
 
 // static

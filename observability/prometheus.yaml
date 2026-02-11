@@ -2,13 +2,11 @@ global:
   scrape_interval: 5s
 
 scrape_configs:
-  # API внутри compose
   - job_name: "supatable-api-docker"
     metrics_path: /metrics
     static_configs:
       - targets: ["api:8080"]
 
-  # API из Rider на хосте (чтобы работало и так тоже)
   - job_name: "supatable-api-rider"
     metrics_path: /metrics
     static_configs:
