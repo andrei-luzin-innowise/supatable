@@ -64,8 +64,8 @@ Then:
 
 Tag-based GitHub Actions deploy:
 
-- `demo-*` -> ephemeral Azure environment
-- `v*` -> non-ephemeral (uses default Azure secrets)
+- `demo-*` -> ephemeral Azure environment (deploy)
+- `v*` -> build/test/artifacts only (no Azure deploy)
 
 For Azure deploy image build, workflow uses:
 
@@ -94,6 +94,9 @@ git push origin demo-1
 - Resource Group: `supatable-ephemeral-<tag>`
 - App Service: `supatable-ephemeral-<tag>-api`
 - Azure Database for PostgreSQL Flexible Server in the same RG
+- Azure Key Vault in the same RG (DB connection string is stored as secret)
+- Azure Log Analytics Workspace in the same RG
+- Azure Application Insights in the same RG
 
 ### Destroy (full cleanup)
 
@@ -108,15 +111,26 @@ Use:
 
 This removes the whole Resource Group, including App Service, managed PostgreSQL and data.
 
+### Azure Observability (instead of local LPG stack)
+
+For `demo-*` Azure deploys:
+
+- App Service app setting `APPLICATIONINSIGHTS_CONNECTION_STRING` is configured automatically
+- App Service diagnostic settings are connected to Log Analytics (`allLogs` + `AllMetrics`)
+
+Where to view:
+
+- `Application Insights` -> `Live Metrics`, `Failures`, `Performance`
+- `Application Insights` -> `Logs` (KQL)
+- `Log Analytics Workspace` -> `Logs` (KQL)
+- `App Service` -> `Log stream` (real-time stream)
+
 ### Required GitHub Secrets (Azure workflows)
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 - `GHCR_TOKEN`
-- `AZURE_RESOURCE_GROUP` (for non-demo `v*` deploy)
-- `AZURE_WEBAPP_NAME` (for non-demo `v*` deploy)
-- `AZURE_CONNECTION_STRING_DEFAULT` (for non-demo `v*` deploy)
 - `AZURE_PG_ADMIN_USER` (for `demo-*`)
 - `AZURE_PG_ADMIN_PASSWORD` (for `demo-*`)
 

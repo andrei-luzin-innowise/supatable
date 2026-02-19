@@ -34,6 +34,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve deployment mode
+        id: flags
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == demo-* ]]; then
+            echo "is_demo=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_demo=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # ---------- FE ----------
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -98,9 +107,11 @@ jobs:
 
       # ---------- GHCR push ----------
       - name: Login to GHCR
+        if: steps.flags.outputs.is_demo == 'true'
         run: echo "${{ github.token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Tag & Push to GHCR
+        if: steps.flags.outputs.is_demo == 'true'
         run: |
           TAG="${GITHUB_REF_NAME}"
           IMAGE_LOCAL="${IMAGE_NAME}:${TAG}"
@@ -111,6 +122,7 @@ jobs:
 
       # ---------- Azure App Service ----------
       - name: Azure Login
+        if: steps.flags.outputs.is_demo == 'true'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -118,32 +130,37 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Resolve target Azure names
+        if: steps.flags.outputs.is_demo == 'true'
         env:
-          DEFAULT_AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          DEFAULT_AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
+          RG="${EPHEMERAL_RG_PREFIX}${TAG}"
+          WEBAPP="${RG}-api"
+          HASH="$(echo -n "${AZURE_SUBSCRIPTION_ID}-${RG}" | sha256sum | cut -c1-6)"
+          TAG_SLUG="$(echo "${TAG}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')"
+          KV_BASE="supa-${TAG_SLUG}-${HASH}-kv"
+          KV_NAME="$(echo "${KV_BASE}" | cut -c1-24 | sed 's/-$//')"
+          LAW_BASE="supa-${TAG_SLUG}-${HASH}-law"
+          LAW_NAME="$(echo "${LAW_BASE}" | cut -c1-63 | sed 's/-$//')"
+          AI_BASE="supa-${TAG_SLUG}-${HASH}-ai"
+          AI_NAME="$(echo "${AI_BASE}" | cut -c1-63 | sed 's/-$//')"
 
-          if [[ "${TAG}" == demo-* ]]; then
-            RG="${EPHEMERAL_RG_PREFIX}${TAG}"
-            WEBAPP="${RG}-api"
-          else
-            RG="${DEFAULT_AZURE_RESOURCE_GROUP}"
-            WEBAPP="${DEFAULT_AZURE_WEBAPP_NAME}"
-          fi
-
-          if [ -z "${RG}" ] || [ -z "${WEBAPP}" ]; then
-            echo "Resolved RG/WEBAPP is empty. Check secrets and tag naming."
+          if [ -z "${RG}" ] || [ -z "${WEBAPP}" ] || [ -z "${KV_NAME}" ] || [ -z "${LAW_NAME}" ] || [ -z "${AI_NAME}" ]; then
+            echo "Resolved names are empty. Check secrets and tag naming."
             exit 1
           fi
 
           echo "AZURE_RESOURCE_GROUP=${RG}" >> "$GITHUB_ENV"
           echo "AZURE_WEBAPP_NAME=${WEBAPP}" >> "$GITHUB_ENV"
-          echo "Resolved RG=${RG}, WEBAPP=${WEBAPP}"
+          echo "AZURE_KEYVAULT_NAME=${KV_NAME}" >> "$GITHUB_ENV"
+          echo "AZURE_LOG_ANALYTICS_NAME=${LAW_NAME}" >> "$GITHUB_ENV"
+          echo "AZURE_APPINSIGHTS_NAME=${AI_NAME}" >> "$GITHUB_ENV"
+          echo "Resolved RG=${RG}, WEBAPP=${WEBAPP}, KV=${KV_NAME}, LAW=${LAW_NAME}, AI=${AI_NAME}"
 
       - name: Ensure ephemeral App Service exists (demo tags)
-        if: startsWith(github.ref_name, 'demo-')
+        if: steps.flags.outputs.is_demo == 'true'
         env:
           AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
           AZURE_APP_SERVICE_PLAN_SKU: ${{ secrets.AZURE_APP_SERVICE_PLAN_SKU }}
@@ -170,7 +187,7 @@ jobs:
           fi
 
       - name: Ensure ephemeral Azure PostgreSQL exists (demo tags)
-        if: startsWith(github.ref_name, 'demo-')
+        if: steps.flags.outputs.is_demo == 'true'
         env:
           AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
           AZURE_PG_ADMIN_USER: ${{ secrets.AZURE_PG_ADMIN_USER }}
@@ -227,23 +244,18 @@ jobs:
           echo "EPHEMERAL_PG_DATABASE=${PG_DB}" >> "$GITHUB_ENV"
 
       - name: Resolve DB connection string for App Service
+        if: steps.flags.outputs.is_demo == 'true'
         env:
-          AZURE_CONNECTION_STRING_DEFAULT: ${{ secrets.AZURE_CONNECTION_STRING_DEFAULT }}
           AZURE_PG_ADMIN_USER: ${{ secrets.AZURE_PG_ADMIN_USER }}
           AZURE_PG_ADMIN_PASSWORD: ${{ secrets.AZURE_PG_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_REF_NAME}" == demo-* ]]; then
-            if [ -z "${EPHEMERAL_PG_SERVER:-}" ] || [ -z "${EPHEMERAL_PG_DATABASE:-}" ]; then
-              echo "EPHEMERAL_PG_SERVER / EPHEMERAL_PG_DATABASE not set."
-              exit 1
-            fi
-
-            RESOLVED="Host=${EPHEMERAL_PG_SERVER}.postgres.database.azure.com;Port=5432;Database=${EPHEMERAL_PG_DATABASE};Username=${AZURE_PG_ADMIN_USER};Password=${AZURE_PG_ADMIN_PASSWORD};SSL Mode=Require;Trust Server Certificate=true"
-          else
-            RESOLVED="${AZURE_CONNECTION_STRING_DEFAULT}"
+          if [ -z "${EPHEMERAL_PG_SERVER:-}" ] || [ -z "${EPHEMERAL_PG_DATABASE:-}" ]; then
+            echo "EPHEMERAL_PG_SERVER / EPHEMERAL_PG_DATABASE not set."
+            exit 1
           fi
+          RESOLVED="Host=${EPHEMERAL_PG_SERVER}.postgres.database.azure.com;Port=5432;Database=${EPHEMERAL_PG_DATABASE};Username=${AZURE_PG_ADMIN_USER};Password=${AZURE_PG_ADMIN_PASSWORD};SSL Mode=Require;Trust Server Certificate=true"
 
           if [ -z "${RESOLVED}" ]; then
             echo "Resolved DB connection string is empty."
@@ -252,22 +264,111 @@ jobs:
 
           echo "RESOLVED_CONNECTION_STRING_DEFAULT=${RESOLVED}" >> "$GITHUB_ENV"
 
+      - name: Ensure Key Vault exists (demo tags)
+        if: steps.flags.outputs.is_demo == 'true'
+        env:
+          AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
+        run: |
+          set -euo pipefail
+          LOCATION="${AZURE_LOCATION:-westeurope}"
+          az keyvault create \
+            --name "${AZURE_KEYVAULT_NAME}" \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --location "${LOCATION}" \
+            --enable-rbac-authorization true 1>/dev/null
+
+      - name: Ensure Log Analytics and App Insights exist (demo tags)
+        if: steps.flags.outputs.is_demo == 'true'
+        env:
+          AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
+        run: |
+          set -euo pipefail
+          LOCATION="${AZURE_LOCATION:-westeurope}"
+
+          az monitor log-analytics workspace create \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --workspace-name "${AZURE_LOG_ANALYTICS_NAME}" \
+            --location "${LOCATION}" 1>/dev/null
+
+          LAW_ID="$(az monitor log-analytics workspace show --resource-group "${AZURE_RESOURCE_GROUP}" --workspace-name "${AZURE_LOG_ANALYTICS_NAME}" --query id -o tsv)"
+
+          if ! az monitor app-insights component show --app "${AZURE_APPINSIGHTS_NAME}" --resource-group "${AZURE_RESOURCE_GROUP}" 1>/dev/null 2>&1; then
+            az monitor app-insights component create \
+              --app "${AZURE_APPINSIGHTS_NAME}" \
+              --location "${LOCATION}" \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --kind web \
+              --workspace "${LAW_ID}" \
+              --application-type web 1>/dev/null
+          fi
+
+          AI_CONNECTION_STRING="$(az monitor app-insights component show --app "${AZURE_APPINSIGHTS_NAME}" --resource-group "${AZURE_RESOURCE_GROUP}" --query connectionString -o tsv)"
+          echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${AI_CONNECTION_STRING}" >> "$GITHUB_ENV"
+          echo "AZURE_LOG_ANALYTICS_ID=${LAW_ID}" >> "$GITHUB_ENV"
+
+      - name: Grant WebApp access to Key Vault (demo tags)
+        if: steps.flags.outputs.is_demo == 'true'
+        run: |
+          set -euo pipefail
+          az webapp identity assign \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" 1>/dev/null
+
+          PRINCIPAL_ID="$(az webapp identity show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query principalId -o tsv)"
+          VAULT_ID="$(az keyvault show --name "${AZURE_KEYVAULT_NAME}" --query id -o tsv)"
+          ROLE_COUNT="$(az role assignment list --assignee-object-id "${PRINCIPAL_ID}" --scope "${VAULT_ID}" --query "length([?roleDefinitionName=='Key Vault Secrets User'])" -o tsv)"
+
+          if [ "${ROLE_COUNT}" = "0" ]; then
+            az role assignment create \
+              --assignee-object-id "${PRINCIPAL_ID}" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Key Vault Secrets User" \
+              --scope "${VAULT_ID}" 1>/dev/null
+          fi
+
+      - name: Put DB connection string into Key Vault (demo tags)
+        if: steps.flags.outputs.is_demo == 'true'
+        run: |
+          set -euo pipefail
+          az keyvault secret set \
+            --vault-name "${AZURE_KEYVAULT_NAME}" \
+            --name "connection-strings-default" \
+            --value "${RESOLVED_CONNECTION_STRING_DEFAULT}" 1>/dev/null
+
       - name: Configure App Service container settings
+        if: steps.flags.outputs.is_demo == 'true'
         env:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
+          KV_REF="@Microsoft.KeyVault(SecretUri=https://${AZURE_KEYVAULT_NAME}.vault.azure.net/secrets/connection-strings-default)"
           az webapp config appsettings set \
             --resource-group "${AZURE_RESOURCE_GROUP}" \
             --name "${AZURE_WEBAPP_NAME}" \
             --settings \
               WEBSITES_PORT=8080 \
-              ConnectionStrings__Default="${RESOLVED_CONNECTION_STRING_DEFAULT}" \
+              ConnectionStrings__Default="${KV_REF}" \
+              APPLICATIONINSIGHTS_CONNECTION_STRING="${APPLICATIONINSIGHTS_CONNECTION_STRING}" \
               DOCKER_REGISTRY_SERVER_URL=https://ghcr.io \
               DOCKER_REGISTRY_SERVER_USERNAME="${GHCR_USERNAME}" \
               DOCKER_REGISTRY_SERVER_PASSWORD="${GHCR_TOKEN}"
 
+      - name: Configure App Service diagnostics to Log Analytics (demo tags)
+        if: steps.flags.outputs.is_demo == 'true'
+        run: |
+          set -euo pipefail
+          WEBAPP_ID="$(az webapp show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query id -o tsv)"
+          DIAG_NAME="${AZURE_WEBAPP_NAME}-diag"
+
+          az monitor diagnostic-settings create \
+            --name "${DIAG_NAME}" \
+            --resource "${WEBAPP_ID}" \
+            --workspace "${AZURE_LOG_ANALYTICS_ID}" \
+            --logs '[{"categoryGroup":"allLogs","enabled":true}]' \
+            --metrics '[{"category":"AllMetrics","enabled":true}]' 1>/dev/null
+
       - name: Deploy container image to Azure App Service
+        if: steps.flags.outputs.is_demo == 'true'
         env:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
