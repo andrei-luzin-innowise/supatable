@@ -1,4 +1,4 @@
-name: Build on tag (FE + BE + Docker) - deploy disabled
+name: Build on tag (FE + BE + Docker)
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 concurrency:
   group: deploy-tag-${{ github.ref }}
@@ -19,9 +20,11 @@ env:
   NODE_VERSION: "20"
 
   CLIENT_DIR: "client"
-  DOCKERFILE_PATH: "src/Supatable.Api/Dockerfile"
+  DOCKERFILE_PATH: "src/Supatable.Api/Dockerfile.azure"
   DOCKER_CONTEXT: "."
   IMAGE_NAME: "supatable-api"
+  EPHEMERAL_RG_PREFIX: "supatable-ephemeral-"
+  EPHEMERAL_PG_DATABASE: "supatable"
 
 jobs:
   build:
@@ -93,13 +96,11 @@ jobs:
           path: artifacts/*.tar.gz
           if-no-files-found: error
 
-      # ---------- GHCR push (DISABLED) ----------
-      - name: Login to GHCR (DISABLED)
-        if: false
+      # ---------- GHCR push ----------
+      - name: Login to GHCR
         run: echo "${{ github.token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Tag & Push to GHCR (DISABLED)
-        if: false
+      - name: Tag & Push to GHCR
         run: |
           TAG="${GITHUB_REF_NAME}"
           IMAGE_LOCAL="${IMAGE_NAME}:${TAG}"
@@ -108,15 +109,180 @@ jobs:
           docker tag "${IMAGE_LOCAL}" "${IMAGE_GHCR}"
           docker push "${IMAGE_GHCR}"
 
-      # ---------- Azure (DISABLED) ----------
-      - name: Azure Login (DISABLED)
-        if: false
+      # ---------- Azure App Service ----------
+      - name: Azure Login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to Azure (DISABLED)
-        if: false
-        run: echo "Azure deploy disabled until billing is enabled."
+      - name: Resolve target Azure names
+        env:
+          DEFAULT_AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          DEFAULT_AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+
+          if [[ "${TAG}" == demo-* ]]; then
+            RG="${EPHEMERAL_RG_PREFIX}${TAG}"
+            WEBAPP="${RG}-api"
+          else
+            RG="${DEFAULT_AZURE_RESOURCE_GROUP}"
+            WEBAPP="${DEFAULT_AZURE_WEBAPP_NAME}"
+          fi
+
+          if [ -z "${RG}" ] || [ -z "${WEBAPP}" ]; then
+            echo "Resolved RG/WEBAPP is empty. Check secrets and tag naming."
+            exit 1
+          fi
+
+          echo "AZURE_RESOURCE_GROUP=${RG}" >> "$GITHUB_ENV"
+          echo "AZURE_WEBAPP_NAME=${WEBAPP}" >> "$GITHUB_ENV"
+          echo "Resolved RG=${RG}, WEBAPP=${WEBAPP}"
+
+      - name: Ensure ephemeral App Service exists (demo tags)
+        if: startsWith(github.ref_name, 'demo-')
+        env:
+          AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
+          AZURE_APP_SERVICE_PLAN_SKU: ${{ secrets.AZURE_APP_SERVICE_PLAN_SKU }}
+        run: |
+          set -euo pipefail
+          LOCATION="${AZURE_LOCATION:-westeurope}"
+          SKU="${AZURE_APP_SERVICE_PLAN_SKU:-B1}"
+          PLAN="${AZURE_RESOURCE_GROUP}-plan"
+
+          az group create --name "${AZURE_RESOURCE_GROUP}" --location "${LOCATION}" 1>/dev/null
+          az appservice plan create \
+            --name "${PLAN}" \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --location "${LOCATION}" \
+            --sku "${SKU}" \
+            --is-linux 1>/dev/null
+
+          if ! az webapp show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" 1>/dev/null 2>&1; then
+            az webapp create \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --plan "${PLAN}" \
+              --name "${AZURE_WEBAPP_NAME}" \
+              --deployment-container-image-name "mcr.microsoft.com/azuredocs/aci-helloworld" 1>/dev/null
+          fi
+
+      - name: Ensure ephemeral Azure PostgreSQL exists (demo tags)
+        if: startsWith(github.ref_name, 'demo-')
+        env:
+          AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
+          AZURE_PG_ADMIN_USER: ${{ secrets.AZURE_PG_ADMIN_USER }}
+          AZURE_PG_ADMIN_PASSWORD: ${{ secrets.AZURE_PG_ADMIN_PASSWORD }}
+          AZURE_PG_SKU: ${{ secrets.AZURE_PG_SKU }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          LOCATION="${AZURE_LOCATION:-westeurope}"
+          PG_SKU="${AZURE_PG_SKU:-Standard_B1ms}"
+          PG_DB="${EPHEMERAL_PG_DATABASE}"
+
+          if [ -z "${AZURE_PG_ADMIN_USER}" ] || [ -z "${AZURE_PG_ADMIN_PASSWORD}" ]; then
+            echo "AZURE_PG_ADMIN_USER / AZURE_PG_ADMIN_PASSWORD are required for demo deployments."
+            exit 1
+          fi
+
+          HASH="$(echo -n "${AZURE_SUBSCRIPTION_ID}-${AZURE_RESOURCE_GROUP}" | sha256sum | cut -c1-6)"
+          TAG_SLUG="$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')"
+          BASE="supa-${TAG_SLUG}-${HASH}-pg"
+          PG_SERVER="$(echo "${BASE}" | cut -c1-63 | sed 's/-$//')"
+
+          az group create --name "${AZURE_RESOURCE_GROUP}" --location "${LOCATION}" 1>/dev/null
+
+          if ! az postgres flexible-server show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${PG_SERVER}" 1>/dev/null 2>&1; then
+            az postgres flexible-server create \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --name "${PG_SERVER}" \
+              --location "${LOCATION}" \
+              --admin-user "${AZURE_PG_ADMIN_USER}" \
+              --admin-password "${AZURE_PG_ADMIN_PASSWORD}" \
+              --sku-name "${PG_SKU}" \
+              --version "16" \
+              --yes 1>/dev/null
+          fi
+
+          if ! az postgres flexible-server firewall-rule show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${PG_SERVER}" --rule-name allow-azure-services 1>/dev/null 2>&1; then
+            az postgres flexible-server firewall-rule create \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --name "${PG_SERVER}" \
+              --rule-name allow-azure-services \
+              --start-ip-address 0.0.0.0 \
+              --end-ip-address 0.0.0.0 1>/dev/null
+          fi
+
+          if ! az postgres flexible-server db show --resource-group "${AZURE_RESOURCE_GROUP}" --server-name "${PG_SERVER}" --database-name "${PG_DB}" 1>/dev/null 2>&1; then
+            az postgres flexible-server db create \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --server-name "${PG_SERVER}" \
+              --database-name "${PG_DB}" 1>/dev/null
+          fi
+
+          echo "EPHEMERAL_PG_SERVER=${PG_SERVER}" >> "$GITHUB_ENV"
+          echo "EPHEMERAL_PG_DATABASE=${PG_DB}" >> "$GITHUB_ENV"
+
+      - name: Resolve DB connection string for App Service
+        env:
+          AZURE_CONNECTION_STRING_DEFAULT: ${{ secrets.AZURE_CONNECTION_STRING_DEFAULT }}
+          AZURE_PG_ADMIN_USER: ${{ secrets.AZURE_PG_ADMIN_USER }}
+          AZURE_PG_ADMIN_PASSWORD: ${{ secrets.AZURE_PG_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_NAME}" == demo-* ]]; then
+            if [ -z "${EPHEMERAL_PG_SERVER:-}" ] || [ -z "${EPHEMERAL_PG_DATABASE:-}" ]; then
+              echo "EPHEMERAL_PG_SERVER / EPHEMERAL_PG_DATABASE not set."
+              exit 1
+            fi
+
+            RESOLVED="Host=${EPHEMERAL_PG_SERVER}.postgres.database.azure.com;Port=5432;Database=${EPHEMERAL_PG_DATABASE};Username=${AZURE_PG_ADMIN_USER};Password=${AZURE_PG_ADMIN_PASSWORD};SSL Mode=Require;Trust Server Certificate=true"
+          else
+            RESOLVED="${AZURE_CONNECTION_STRING_DEFAULT}"
+          fi
+
+          if [ -z "${RESOLVED}" ]; then
+            echo "Resolved DB connection string is empty."
+            exit 1
+          fi
+
+          echo "RESOLVED_CONNECTION_STRING_DEFAULT=${RESOLVED}" >> "$GITHUB_ENV"
+
+      - name: Configure App Service container settings
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          az webapp config appsettings set \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --settings \
+              WEBSITES_PORT=8080 \
+              ConnectionStrings__Default="${RESOLVED_CONNECTION_STRING_DEFAULT}" \
+              DOCKER_REGISTRY_SERVER_URL=https://ghcr.io \
+              DOCKER_REGISTRY_SERVER_USERNAME="${GHCR_USERNAME}" \
+              DOCKER_REGISTRY_SERVER_PASSWORD="${GHCR_TOKEN}"
+
+      - name: Deploy container image to Azure App Service
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          IMAGE_GHCR="ghcr.io/${{ github.repository_owner }}/supatable-api:${TAG}"
+
+          az webapp config container set \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --container-image-name "${IMAGE_GHCR}" \
+            --container-registry-url "https://ghcr.io" \
+            --container-registry-user "${GHCR_USERNAME}" \
+            --container-registry-password "${GHCR_TOKEN}"
+
+          az webapp restart \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}"

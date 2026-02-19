@@ -1,0 +1,99 @@
+name: Destroy Azure Ephemeral Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_tag:
+        description: "Tag used for deploy (for demo tags resolves RG as supatable-ephemeral-<tag>)"
+        required: false
+        type: string
+      resource_group:
+        description: "Azure Resource Group to delete (leave empty to use secret AZURE_RESOURCE_GROUP)"
+        required: false
+        type: string
+      require_prefix_check:
+        description: "Require RG name to start with 'supatable-ephemeral-'"
+        required: true
+        default: true
+        type: boolean
+      confirm:
+        description: "Type DELETE to confirm destruction"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve and validate target RG
+        id: validate
+        env:
+          INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment_tag }}
+          INPUT_RESOURCE_GROUP: ${{ inputs.resource_group }}
+          SECRET_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          INPUT_CONFIRM: ${{ inputs.confirm }}
+          REQUIRE_PREFIX_CHECK: ${{ inputs.require_prefix_check }}
+        run: |
+          set -euo pipefail
+
+          RG=""
+          if [ -n "${INPUT_RESOURCE_GROUP}" ]; then
+            RG="${INPUT_RESOURCE_GROUP}"
+          elif [[ "${INPUT_DEPLOYMENT_TAG}" == demo-* ]]; then
+            RG="supatable-ephemeral-${INPUT_DEPLOYMENT_TAG}"
+          else
+            RG="${SECRET_RESOURCE_GROUP}"
+          fi
+
+          if [ -z "${RG}" ]; then
+            echo "Resource group is empty. Provide workflow input 'resource_group' or secret AZURE_RESOURCE_GROUP."
+            exit 1
+          fi
+
+          if [ "${INPUT_CONFIRM}" != "DELETE" ]; then
+            echo "Confirmation failed. You must type DELETE."
+            exit 1
+          fi
+
+          if [ "${REQUIRE_PREFIX_CHECK}" = "true" ]; then
+            case "${RG}" in
+              supatable-ephemeral-*) ;;
+              *)
+                echo "Prefix check failed. RG '${RG}' must start with 'supatable-ephemeral-'."
+                exit 1
+                ;;
+            esac
+          fi
+
+          EXISTS="$(az group exists --name "${RG}")"
+          if [ "${EXISTS}" != "true" ]; then
+            echo "Resource group '${RG}' does not exist. Nothing to delete."
+            echo "skip_delete=true" >> "$GITHUB_OUTPUT"
+            echo "rg=${RG}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip_delete=false" >> "$GITHUB_OUTPUT"
+          echo "rg=${RG}" >> "$GITHUB_OUTPUT"
+
+      - name: Delete resource group
+        if: steps.validate.outputs.skip_delete != 'true'
+        env:
+          RG: ${{ steps.validate.outputs.rg }}
+        run: |
+          set -euo pipefail
+          az group delete --name "${RG}" --yes --no-wait
+          az group wait --name "${RG}" --deleted
+          echo "Resource group '${RG}' deleted."

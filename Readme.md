@@ -28,6 +28,107 @@ docker compose up
 
 ---
 
+## Runtime Modes
+
+### 1. Demo Mode (from repo)
+
+Use Docker Compose when you want everything in containers:
+
+```bash
+docker compose up
+```
+
+What runs:
+
+- Backend (`api`) in its own container
+- Frontend (`client`) in its own container
+- PostgreSQL
+- Loki / Prometheus / Grafana
+
+### 2. Development Mode (Rider / local debug)
+
+Run backend and frontend directly from IDE/terminal, keep infra in containers.
+
+Example infra-only start:
+
+```bash
+docker compose up db loki prometheus grafana
+```
+
+Then:
+
+- Run `Supatable.Api` locally from Rider (debug mode)
+- Run frontend locally (`npm run dev` in `client`)
+
+### 3. Azure Tag Deploy Mode
+
+Tag-based GitHub Actions deploy:
+
+- `demo-*` -> ephemeral Azure environment
+- `v*` -> non-ephemeral (uses default Azure secrets)
+
+For Azure deploy image build, workflow uses:
+
+- `src/Supatable.Api/Dockerfile.azure` (frontend is built and copied into backend `wwwroot`)
+
+Local/demo compose mode still uses:
+
+- `src/Supatable.Api/Dockerfile` (backend-only image)
+- `client/Dockerfile` (separate frontend container)
+
+---
+
+## Azure Ephemeral Environment
+
+### Deploy
+
+Push a tag like:
+
+```bash
+git tag demo-1
+git push origin demo-1
+```
+
+`deploy-tag.yaml` will create/use:
+
+- Resource Group: `supatable-ephemeral-<tag>`
+- App Service: `supatable-ephemeral-<tag>-api`
+- Azure Database for PostgreSQL Flexible Server in the same RG
+
+### Destroy (full cleanup)
+
+Run GitHub Action:
+
+- `Destroy Azure Ephemeral Environment` (`.github/workflows/azure-destroy.yaml`)
+
+Use:
+
+- `deployment_tag=demo-1`
+- `confirm=DELETE`
+
+This removes the whole Resource Group, including App Service, managed PostgreSQL and data.
+
+### Required GitHub Secrets (Azure workflows)
+
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+- `GHCR_TOKEN`
+- `AZURE_RESOURCE_GROUP` (for non-demo `v*` deploy)
+- `AZURE_WEBAPP_NAME` (for non-demo `v*` deploy)
+- `AZURE_CONNECTION_STRING_DEFAULT` (for non-demo `v*` deploy)
+- `AZURE_PG_ADMIN_USER` (for `demo-*`)
+- `AZURE_PG_ADMIN_PASSWORD` (for `demo-*`)
+
+Optional:
+
+- `AZURE_LOCATION` (default: `westeurope`)
+- `AZURE_APP_SERVICE_PLAN_SKU` (default: `B1`)
+- `AZURE_PG_SKU` (default: `Standard_B1ms`)
+- `GHCR_USERNAME` (default: repository owner)
+
+---
+
 ## Available Endpoints
 
 | Service     | URL                           | Description                 |

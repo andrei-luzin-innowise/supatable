@@ -34,7 +34,8 @@ out/
 ################################
 # ASP.NET Core
 ################################
-appsettings.Development.json
+# appsettings.Development.json is intentionally versioned in this repo.
+# It must contain only non-secret local development defaults.
 appsettings.Local.json
 appsettings.*.local.json
 secrets.json
