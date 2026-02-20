@@ -139,6 +139,7 @@ Optional:
 - `AZURE_LOCATION` (default: `westeurope`)
 - `AZURE_APP_SERVICE_PLAN_SKU` (default: `B1`)
 - `AZURE_PG_SKU` (default: `Standard_B1ms`)
+- `AZURE_PG_TIER` (default: `Burstable`)
 - `GHCR_USERNAME` (default: repository owner)
 
 ---

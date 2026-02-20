@@ -1,7 +1,10 @@
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.ApplicationInsights.Extensibility;
 using OpenTelemetry.Metrics;
 using Serilog;
 using Serilog.Enrichers.Span;
+using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 using Supatable.Api.Startup;
 using Supatable.Api.GraphQL;
 using Supatable.Api.Observability;
@@ -11,16 +14,27 @@ using Supatable.Infrastructure.Persistence.Dapper;
 using Supatable.Infrastructure.Persistence.Ef;
 
 var builder = WebApplication.CreateBuilder(args);
+var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
 
 // serilog
 builder.Host.UseSerilog((ctx, lc) =>
 {
     lc.ReadFrom.Configuration(ctx.Configuration)
+        .WriteTo.Console()
         .Enrich.FromLogContext()
         .Enrich.WithEnvironmentName()
         .Enrich.WithProcessId()
         .Enrich.WithThreadId()
         .Enrich.WithSpan();
+
+    if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+    {
+        var telemetryConfiguration = new TelemetryConfiguration
+        {
+            ConnectionString = appInsightsConnectionString
+        };
+        lc.WriteTo.ApplicationInsights(telemetryConfiguration, TelemetryConverter.Traces);
+    }
 });
 
 // OpenTelemetry Metrics (/metrics)
@@ -33,6 +47,14 @@ builder.Services.AddOpenTelemetry()
          .AddProcessInstrumentation()
          .AddMeter("Supatable.Api")
          .AddPrometheusExporter();
+
+        if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+        {
+            m.AddAzureMonitorMetricExporter(opt =>
+            {
+                opt.ConnectionString = appInsightsConnectionString;
+            });
+        }
     });
 
 // GraphQL

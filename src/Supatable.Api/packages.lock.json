@@ -2,6 +2,18 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "Azure.Monitor.OpenTelemetry.Exporter": {
+        "type": "Direct",
+        "requested": "[1.4.0, )",
+        "resolved": "1.4.0",
+        "contentHash": "oG4JO4uvtTibh83syZFgBCbWyKbbhrmGyyFnmzUMO7tmgrRdSdD4PHe8+TKdPZ7hNAVjySuColO6aJzbncZ02w==",
+        "dependencies": {
+          "Azure.Core": "1.46.0",
+          "OpenTelemetry": "1.12.0",
+          "OpenTelemetry.Extensions.Hosting": "1.12.0",
+          "OpenTelemetry.PersistentStorage.FileSystem": "1.0.1"
+        }
+      },
       "HotChocolate.AspNetCore": {
         "type": "Direct",
         "requested": "[15.1.12, )",
@@ -147,6 +159,16 @@
           "Serilog": "4.0.0"
         }
       },
+      "Serilog.Sinks.ApplicationInsights": {
+        "type": "Direct",
+        "requested": "[4.0.0, )",
+        "resolved": "4.0.0",
+        "contentHash": "AlYq1JFqh+RFKwLKZ3X224Zbe1gnkMbqSELp2FApLN0iMyRPdwwxMJBCCrk49C8qOefBd4zN+J/1Tq3i75DunA==",
+        "dependencies": {
+          "Microsoft.ApplicationInsights": "2.20.0",
+          "Serilog": "2.11.0"
+        }
+      },
       "Serilog.Sinks.Console": {
         "type": "Direct",
         "requested": "[6.1.1, )",
@@ -172,6 +194,16 @@
         "contentHash": "znb7fSb/4NfM++cSp99bUO3MCuP1Xx1k2329BUZCp7Tp+YwzAlDHHzBcVUZCll/EPGLuVPUdx894peHaAjYlvA==",
         "dependencies": {
           "Serilog": "2.12.0"
+        }
+      },
+      "Azure.Core": {
+        "type": "Transitive",
+        "resolved": "1.46.0",
+        "contentHash": "MNFRFDHqUBZkeViSrDX6bPfQhXsydKJXu64AntycIzSG+nemh39XCkhDvjES0uisJlHsVex/tmkfA2ZQt913DQ==",
+        "dependencies": {
+          "Microsoft.Bcl.AsyncInterfaces": "8.0.0",
+          "System.ClientModel": "1.4.0",
+          "System.Memory.Data": "6.0.1"
         }
       },
       "ChilliCream.Nitro.App": {
@@ -502,6 +534,16 @@
         "resolved": "2.0.1",
         "contentHash": "FYv95bNT4UwcNA+G/J1oX5OpRiSUxteXaUt2BJbRSdRNiIUNbggJF69wy6mnk2wYToaanpdXZdCwVylt96MpwQ=="
       },
+      "Microsoft.ApplicationInsights": {
+        "type": "Transitive",
+        "resolved": "2.20.0",
+        "contentHash": "mb+EC5j06Msn5HhKrhrsMAst6JxvYUnphQMGY2cixCabgGAO3q79Y8o/p1Zce1Azgd1IVkRKAMzAV4vDCbXOqA=="
+      },
+      "Microsoft.Bcl.AsyncInterfaces": {
+        "type": "Transitive",
+        "resolved": "8.0.0",
+        "contentHash": "3WA9q9yVqJp222P3x1wYIGDAkpjAku0TMUaaQV22g6L67AI0LdOIrVS7Ht2vJfLHGSPVuqN94vIr15qn+HEkHw=="
+      },
       "Microsoft.Build.Framework": {
         "type": "Transitive",
         "resolved": "18.0.2",
@@ -687,6 +729,19 @@
           "OpenTelemetry.Api": "1.15.0"
         }
       },
+      "OpenTelemetry.PersistentStorage.Abstractions": {
+        "type": "Transitive",
+        "resolved": "1.0.1",
+        "contentHash": "LfXI2EoO7t2ku3hN6rIcUgqrdmNxKPG4pkgVa7Cakb9rlkmHYcqzMavLU5vy+G/txT+ZmLW9Z7TlptTqnrGEXg=="
+      },
+      "OpenTelemetry.PersistentStorage.FileSystem": {
+        "type": "Transitive",
+        "resolved": "1.0.1",
+        "contentHash": "RR1UziU+PYWYe+cwGZtSpdF43zv60GPP+WU0epR8xzZuA5FoxceCa+tYTh8iDqTYvy6F+jUzRe74dg/YAZ437Q==",
+        "dependencies": {
+          "OpenTelemetry.PersistentStorage.Abstractions": "1.0.1"
+        }
+      },
       "Serilog": {
         "type": "Transitive",
         "resolved": "4.3.0",
@@ -732,6 +787,14 @@
         "contentHash": "4BzXcdrgRX7wde9PmHuYd9U6YqycCC28hhpKonK7hx0wb19eiuRj16fPcPSVp0o/Y1ipJuNLYQ00R3q2Zs8FDA==",
         "dependencies": {
           "Serilog": "4.0.0"
+        }
+      },
+      "System.ClientModel": {
+        "type": "Transitive",
+        "resolved": "1.4.0",
+        "contentHash": "UIAc1qwbgjXksmpVk7obZbnzPqlpWPzbfkh0LdDnI8+7rXu1zmNNrcpWof8DFUytVgNcMFwFY1lT6lGxxovARw==",
+        "dependencies": {
+          "System.Memory.Data": "6.0.1"
         }
       },
       "System.CodeDom": {
@@ -791,6 +854,11 @@
         "type": "Transitive",
         "resolved": "8.0.0",
         "contentHash": "ne1843evDugl0md7Fjzy6QjJrzsjh46ZKbhf8GwBXb5f/gw97J4bxMs0NQKifDuThh/f0bZ0e62NPl1jzTuRqA=="
+      },
+      "System.Memory.Data": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "yliDgLh9S9Mcy5hBIdZmX6yphYIW3NH+3HN1kV1m7V1e0s7LNTw/tHNjJP4U9nSMEgl3w1TzYv/KA1Tg9NYy6w=="
       },
       "Yarp.ReverseProxy": {
         "type": "Transitive",
