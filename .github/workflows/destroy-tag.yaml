@@ -1,6 +1,7 @@
-name: Destroy Azure Ephemeral Environment
+name: Destroy Azure Ephemeral Environment (manual + tag delete)
 
 on:
+  delete:
   workflow_dispatch:
     inputs:
       deployment_tag:
@@ -40,6 +41,9 @@ jobs:
       - name: Resolve and validate target RG
         id: validate
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF_TYPE: ${{ github.event.ref_type }}
+          EVENT_REF: ${{ github.event.ref }}
           INPUT_DEPLOYMENT_TAG: ${{ inputs.deployment_tag }}
           INPUT_RESOURCE_GROUP: ${{ inputs.resource_group }}
           SECRET_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
@@ -49,12 +53,37 @@ jobs:
           set -euo pipefail
 
           RG=""
-          if [ -n "${INPUT_RESOURCE_GROUP}" ]; then
-            RG="${INPUT_RESOURCE_GROUP}"
-          elif [[ "${INPUT_DEPLOYMENT_TAG}" == demo-* ]]; then
-            RG="supatable-ephemeral-${INPUT_DEPLOYMENT_TAG}"
+
+          if [ "${EVENT_NAME}" = "delete" ]; then
+            if [ "${EVENT_REF_TYPE}" != "tag" ]; then
+              echo "Delete event for ref_type='${EVENT_REF_TYPE}' is ignored."
+              echo "skip_delete=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if [[ "${EVENT_REF}" != demo-* ]]; then
+              echo "Deleted tag '${EVENT_REF}' is not demo-*. Skipping."
+              echo "skip_delete=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            RG="supatable-ephemeral-${EVENT_REF}"
+            REQUIRE_PREFIX="true"
           else
-            RG="${SECRET_RESOURCE_GROUP}"
+            if [ -n "${INPUT_RESOURCE_GROUP}" ]; then
+              RG="${INPUT_RESOURCE_GROUP}"
+            elif [[ "${INPUT_DEPLOYMENT_TAG}" == demo-* ]]; then
+              RG="supatable-ephemeral-${INPUT_DEPLOYMENT_TAG}"
+            else
+              RG="${SECRET_RESOURCE_GROUP}"
+            fi
+
+            if [ "${INPUT_CONFIRM}" != "DELETE" ]; then
+              echo "Confirmation failed. You must type DELETE."
+              exit 1
+            fi
+
+            REQUIRE_PREFIX="${REQUIRE_PREFIX_CHECK}"
           fi
 
           if [ -z "${RG}" ]; then
@@ -62,12 +91,7 @@ jobs:
             exit 1
           fi
 
-          if [ "${INPUT_CONFIRM}" != "DELETE" ]; then
-            echo "Confirmation failed. You must type DELETE."
-            exit 1
-          fi
-
-          if [ "${REQUIRE_PREFIX_CHECK}" = "true" ]; then
+          if [ "${REQUIRE_PREFIX}" = "true" ]; then
             case "${RG}" in
               supatable-ephemeral-*) ;;
               *)

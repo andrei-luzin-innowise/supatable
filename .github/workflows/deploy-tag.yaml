@@ -167,7 +167,7 @@ jobs:
           AZURE_APP_SERVICE_PLAN_SKU: ${{ secrets.AZURE_APP_SERVICE_PLAN_SKU }}
         run: |
           set -euo pipefail
-          LOCATION="${AZURE_LOCATION:-westeurope}"
+          LOCATION="${AZURE_LOCATION:-polandcentral}"
           SKU="${AZURE_APP_SERVICE_PLAN_SKU:-B1}"
           PLAN="${AZURE_RESOURCE_GROUP}-plan"
 
@@ -198,7 +198,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           set -euo pipefail
-          LOCATION="${AZURE_LOCATION:-westeurope}"
+          LOCATION="${AZURE_LOCATION:-polandcentral}"
           PG_SKU="${AZURE_PG_SKU:-Standard_B1ms}"
           PG_TIER="${AZURE_PG_TIER:-Burstable}"
           PG_DB="${EPHEMERAL_PG_DATABASE}"
@@ -274,7 +274,7 @@ jobs:
           AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
         run: |
           set -euo pipefail
-          LOCATION="${AZURE_LOCATION:-westeurope}"
+          LOCATION="${AZURE_LOCATION:-polandcentral}"
           az keyvault create \
             --name "${AZURE_KEYVAULT_NAME}" \
             --resource-group "${AZURE_RESOURCE_GROUP}" \
@@ -287,7 +287,7 @@ jobs:
           AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
         run: |
           set -euo pipefail
-          LOCATION="${AZURE_LOCATION:-westeurope}"
+          LOCATION="${AZURE_LOCATION:-polandcentral}"
 
           az monitor log-analytics workspace create \
             --resource-group "${AZURE_RESOURCE_GROUP}" \
@@ -392,3 +392,4 @@ jobs:
           az webapp restart \
             --resource-group "${AZURE_RESOURCE_GROUP}" \
             --name "${AZURE_WEBAPP_NAME}"
+

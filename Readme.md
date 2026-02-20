@@ -102,7 +102,7 @@ git push origin demo-1
 
 Run GitHub Action:
 
-- `Destroy Azure Ephemeral Environment` (`.github/workflows/azure-destroy.yaml`)
+- `Destroy Azure Ephemeral Environment (manual + tag delete)` (`.github/workflows/destroy-tag.yaml`)
 
 Use:
 
@@ -136,7 +136,7 @@ Where to view:
 
 Optional:
 
-- `AZURE_LOCATION` (default: `westeurope`)
+- `AZURE_LOCATION` (default: `polandcentral`)
 - `AZURE_APP_SERVICE_PLAN_SKU` (default: `B1`)
 - `AZURE_PG_SKU` (default: `Standard_B1ms`)
 - `AZURE_PG_TIER` (default: `Burstable`)
@@ -246,3 +246,4 @@ Initial dataset contains example users with roles:
 - Azure App Service
 - Azure Key Vault
 - PostgreSQL Flexible Server
+
