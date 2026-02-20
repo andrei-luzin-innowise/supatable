@@ -212,12 +212,32 @@ jobs:
               n=$((n + 1))
             done
           }
+          retry_exp() {
+            local attempts="$1"; shift
+            local delay="$1"; shift
+            local n=1
+            until "$@"; do
+              if [ "$n" -ge "$attempts" ]; then
+                echo "Command failed after $n attempts: $*"
+                return 1
+              fi
+              sleep "$delay"
+              if [ "$delay" -lt 300 ]; then
+                delay=$((delay * 2))
+                if [ "$delay" -gt 300 ]; then
+                  delay=300
+                fi
+              fi
+              n=$((n + 1))
+            done
+          }
           LOCATION="${AZURE_LOCATION:-polandcentral}"
           SKU="${AZURE_APP_SERVICE_PLAN_SKU:-B1}"
           PLAN="${AZURE_RESOURCE_GROUP}-plan"
 
           retry 6 20 az group create --name "${AZURE_RESOURCE_GROUP}" --location "${LOCATION}" 1>/dev/null
-          retry 6 30 az appservice plan create \
+
+          retry_exp 8 20 az appservice plan create \
             --name "${PLAN}" \
             --resource-group "${AZURE_RESOURCE_GROUP}" \
             --location "${LOCATION}" \
@@ -439,6 +459,14 @@ jobs:
               --role "Key Vault Secrets User" \
               --scope "${VAULT_ID}" 1>/dev/null
           fi
+
+      - name: Azure Login refresh (before Key Vault + deploy)
+        if: steps.flags.outputs.is_demo == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Put DB connection string into Key Vault (demo tags)
         if: steps.flags.outputs.is_demo == 'true'
