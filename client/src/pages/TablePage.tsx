@@ -176,18 +176,6 @@ export default function TablePage() {
         dir: "desc",
     });
 
-    const columns = useMemo(
-        () =>
-            [
-                { key: "id", title: "Id" },
-                { key: "email", title: "Email" },
-                { key: "fullName", title: "Full name" },
-                { key: "role", title: "Role" },
-                { key: "createdAt", title: "Created" },
-            ] as const,
-        []
-    );
-
     const sortedRows = useMemo(() => {
         const copy = [...rows];
 

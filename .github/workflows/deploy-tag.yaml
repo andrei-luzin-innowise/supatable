@@ -21,7 +21,7 @@ env:
 
   CLIENT_DIR: "client"
   DOCKERFILE_PATH: "src/Supatable.Api/Dockerfile.azure"
-  DOCKER_CONTEXT: "."
+  DOCKER_BUILD_CONTEXT: "."
   IMAGE_NAME: "supatable-api"
   EPHEMERAL_RG_PREFIX: "supatable-ephemeral-"
   EPHEMERAL_PG_DATABASE: "supatable"
@@ -72,6 +72,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Restore
         run: dotnet restore
@@ -87,7 +88,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           IMAGE="${IMAGE_NAME}:${TAG}"
-          docker build -f "${DOCKERFILE_PATH}" -t "${IMAGE}" "${DOCKER_CONTEXT}"
+          docker build -f "${DOCKERFILE_PATH}" -t "${IMAGE}" "${DOCKER_BUILD_CONTEXT}"
           docker images | head -n 25
 
       # save docker image as tar to test
