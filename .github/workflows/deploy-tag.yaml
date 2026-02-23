@@ -468,11 +468,65 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Grant deployer access to Key Vault secrets (demo tags)
+        if: steps.flags.outputs.is_demo == 'true'
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          retry() {
+            local attempts="$1"; shift
+            local delay="$1"; shift
+            local n=1
+            until "$@"; do
+              if [ "$n" -ge "$attempts" ]; then
+                echo "Command failed after $n attempts: $*"
+                return 1
+              fi
+              sleep "$delay"
+              n=$((n + 1))
+            done
+          }
+
+          VAULT_ID="$(az keyvault show --name "${AZURE_KEYVAULT_NAME}" --query id -o tsv)"
+          DEPLOYER_OBJECT_ID="$(az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv)"
+
+          if [ -z "${DEPLOYER_OBJECT_ID}" ]; then
+            echo "Failed to resolve service principal object id for AZURE_CLIENT_ID."
+            exit 1
+          fi
+
+          ROLE_COUNT="$(az role assignment list \
+            --assignee-object-id "${DEPLOYER_OBJECT_ID}" \
+            --scope "${VAULT_ID}" \
+            --query "length([?roleDefinitionName=='Key Vault Secrets Officer'])" -o tsv)"
+
+          if [ "${ROLE_COUNT}" = "0" ]; then
+            retry 6 20 az role assignment create \
+              --assignee-object-id "${DEPLOYER_OBJECT_ID}" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Key Vault Secrets Officer" \
+              --scope "${VAULT_ID}" 1>/dev/null
+          fi
+
       - name: Put DB connection string into Key Vault (demo tags)
         if: steps.flags.outputs.is_demo == 'true'
         run: |
           set -euo pipefail
-          az keyvault secret set \
+          retry() {
+            local attempts="$1"; shift
+            local delay="$1"; shift
+            local n=1
+            until "$@"; do
+              if [ "$n" -ge "$attempts" ]; then
+                echo "Command failed after $n attempts: $*"
+                return 1
+              fi
+              sleep "$delay"
+              n=$((n + 1))
+            done
+          }
+          retry 8 15 az keyvault secret set \
             --vault-name "${AZURE_KEYVAULT_NAME}" \
             --name "connection-strings-default" \
             --value "${RESOLVED_CONNECTION_STRING_DEFAULT}" 1>/dev/null
